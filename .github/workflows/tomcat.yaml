@@ -1,82 +1,64 @@
-name: Build and Deploy to Tomcat
+name: CI/CD pipeline to Deploy to Tomcat
 
 on:
   push:
     branches:
-      - master   # DEV deployment
-  workflow_dispatch:  # optional manual trigger for PROD if needed
+      - master
 
 jobs:
-  # ---------------- DEV Deployment ----------------
-  deploy-dev:
+  build-deploy:
     runs-on: ubuntu-latest
-    environment: DEV
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-java@v4
-        with:
-          distribution: 'temurin'
-          java-version: '17'
-      - run: mvn clean package -DskipTests
-      - name: Deploy to DEV Tomcat
-        run: |
-          curl -v -u ${{ secrets.TOMCAT_USER_DEV }}:${{ secrets.TOMCAT_PASSWORD_DEV }} \
-          -T target/TrainBook-1.0.0-SNAPSHOT.war \
-          "http://${{ secrets.TOMCAT_HOST_DEV }}:8080/manager/text/deploy?path=/TrainBook&update=true"
 
-  # ---------------- TEST Deployment ----------------
-  deploy-test:
-    runs-on: ubuntu-latest
-    needs: deploy-dev
-    environment: TEST
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-java@v4
-        with:
-          distribution: 'temurin'
-          java-version: '17'
-      - run: mvn clean package -DskipTests
-      - name: Deploy to TEST Tomcat
-        run: |
-          curl -v -u ${{ secrets.TOMCAT_USER_TEST }}:${{ secrets.TOMCAT_PASSWORD_TEST }} \
-          -T target/TrainBook-1.0.0-SNAPSHOT.war \
-          "http://${{ secrets.TOMCAT_HOST_TEST }}:8080/manager/text/deploy?path=/TrainBook&update=true"
+      # 1️⃣ Checkout code
+      - name: Checkout code
+        uses: actions/checkout@v3
 
-  # ---------------- PRE-PROD Deployment ----------------
-  deploy-preprod:
-    runs-on: ubuntu-latest
-    needs: deploy-test
-    environment: PRE-PROD
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-java@v4
+      # 2️⃣ Setup JDK 17
+      - name: Setup JDK 17
+        uses: actions/setup-java@v3
         with:
           distribution: 'temurin'
           java-version: '17'
-      - run: mvn clean package -DskipTests
-      - name: Deploy to PRE-PROD Tomcat
-        run: |
-          curl -v -u ${{ secrets.TOMCAT_USER_PRE_PROD }}:${{ secrets.TOMCAT_PASSWORD_PRE_PROD }} \
-          -T target/TrainBook-1.0.0-SNAPSHOT.war \
-          "http://${{ secrets.TOMCAT_HOST_PRE_PROD }}:8080/manager/text/deploy?path=/TrainBook&update=true"
 
-  # ---------------- PROD Deployment (Manual Approval) ----------------
-  deploy-prod:
-    runs-on: ubuntu-latest
-    needs: deploy-preprod
-    if: github.ref == 'refs/heads/master'
-    environment:
-      name: PROD
-      # Make sure this environment has "Required reviewers" enabled
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-java@v4
-        with:
-          distribution: 'temurin'
-          java-version: '17'
-      - run: mvn clean package -DskipTests
-      - name: Deploy to PROD Tomcat
+      # 3️⃣ Maven Validate
+      - name: Maven validate
+        run: mvn validate -Dproject.build.sourceEncoding=UTF-8
+
+      # 4️⃣ Maven Compile
+      - name: Maven compile
+        run: mvn compile -Dproject.build.sourceEncoding=UTF-8
+
+      # 5️⃣ Maven Test
+      - name: Maven test
+        run: mvn test -Dproject.build.sourceEncoding=UTF-8
+
+      # 6️⃣ SonarQube Code Quality
+      - name: Sonar Code Quality
         run: |
-          curl -v -u ${{ secrets.TOMCAT_USER_PROD }}:${{ secrets.TOMCAT_PASSWORD_PROD }} \
-          -T target/TrainBook-1.0.0-SNAPSHOT.war \
-          "http://${{ secrets.TOMCAT_HOST_PROD }}:8080/manager/text/deploy?path=/TrainBook&update=true"
+          mvn clean verify sonar:sonar \
+            -Dsonar.projectKey=train-ticket \
+            -Dsonar.host.url=${{ secrets.SONAR_HOST }} \
+            -Dsonar.login=${{ secrets.SONAR_TOKEN }} \
+            -Dproject.build.sourceEncoding=UTF-8
+
+      # 7️⃣ Maven Package
+      - name: Maven package
+        run: mvn package -DskipTests -Dproject.build.sourceEncoding=UTF-8
+
+      # 8️⃣ Configure Maven settings.xml for Nexus
+      - name: Configure Maven for Nexus
+        run: |
+          mkdir -p ~/.m2
+          echo "${{ secrets.MAVEN_SETTINGS }}" > ~/.m2/settings.xml
+
+      # 9️⃣ Upload Artifact to Nexus
+      - name: Upload Artifact to Nexus
+        run: mvn deploy -DskipTests=true
+
+      # 🔟 Deploy WAR to Tomcat
+      - name: Deploy to Tomcat
+        run: |
+          curl -v -u ${{ secrets.TOMCAT_USER }}:${{ secrets.TOMCAT_PASSWORD }} \
+            -T target/TrainBook-1.0.0-SNAPSHOT.war \
+            "http://${{ secrets.TOMCAT_HOST }}:8080/manager/text/deploy?path=/vcube140&update=true"
