@@ -58,9 +58,20 @@ jobs:
         run: mvn deploy -DaltDeploymentRepository=nexus::default::${{ secrets.NEXUS_REPO_URL }}
 
 
-      # 🔟 Deploy WAR to Tomcat
-      - name: Deploy to Tomcat
+    
+
+      - name: 🚀 Deploy to DEV
+        env:
+          URL: ${{ secrets.TOMCAT_HOST}}
+          USER: ${{ secrets.TOMCAT_USER }}
+          PASS: ${{ secrets.TOMCAT_PASSWORD }}
         run: |
-          curl -v -u ${{ secrets.TOMCAT_USER }}:${{ secrets.TOMCAT_PASSWORD }} \
-            -T target/TrainBook-1.0.0-SNAPSHOT.war \
-            "http://${{ secrets.TOMCAT_HOST }}:8080/manager/text/deploy?path=/vcube140&update=true"
+          WAR_FILE=$(ls *.war | head -n 1)
+          echo "Deploying $WAR_FILE to DEV ($URL)"
+
+          echo "📌 Checking Tomcat Manager access..."
+          curl -v -u "$USER:$PASS" "$URL/list"
+
+          echo "📌 Deploying WAR file..."
+          curl -v -u "$USER:$PASS" --fail --show-error -T "$WAR_FILE" \
+            "$URL/deploy?path=/train-ticket-reservation&update=true"
