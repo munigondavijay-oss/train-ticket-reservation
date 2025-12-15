@@ -42,19 +42,24 @@ jobs:
             -Dsonar.login=${{ secrets.SONAR_TOKEN }} \
             -Dproject.build.sourceEncoding=UTF-8
 
-      # 7️⃣ Maven Package
-      - name: Maven package
-        run: mvn package -DskipTests -Dproject.build.sourceEncoding=UTF-8
-
-      # 8️⃣ Configure Maven settings.xml for Nexus
-      - name: Configure Maven for Nexus
+      - name: Configure Maven settings.xml for Nexus
         run: |
           mkdir -p ~/.m2
-          echo "${{ secrets.MAVEN_SETTINGS }}" > ~/.m2/settings.xml
+          cat <<EOF > ~/.m2/settings.xml
+          <settings>
+            <servers>
+              <server>
+                <id>nexus</id>
+                <username>${{ secrets.NEXUS_USERNAME }}</username>
+                <password>${{ secrets.NEXUS_PASSWORD }}</password>
+              </server>
+            </servers>
+          </settings>
+          EOF
 
-      # 9️⃣ Upload Artifact to Nexus
       - name: Upload Artifact to Nexus
-        run: mvn deploy -DskipTests=true
+        run: mvn deploy -DaltDeploymentRepository=nexus::default::${{ secrets.NEXUS_REPO_URL }}
+
 
       # 🔟 Deploy WAR to Tomcat
       - name: Deploy to Tomcat
