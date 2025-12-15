@@ -70,8 +70,8 @@ jobs:
           echo "Deploying $WAR_FILE to DEV ($URL)"
 
           echo "📌 Checking Tomcat Manager access..."
-          curl -v -u "$USER:$PASS" "$URL/list"
+          curl -v -u "$USER:$PASS" "$URL/manager/text/list"
 
           echo "📌 Deploying WAR file..."
           curl -v -u "$USER:$PASS" --fail --show-error -T "$WAR_FILE" \
-            "$URL/deploy?path=/train-ticket-reservation&update=true"
+            "$URL/manager/text/deploy?path=/train-ticket-reservation&update=true"
