@@ -1,5 +1,5 @@
 FROM tomcat:9-jdk11
 
-COPY target/train-ticket-reservation.war /usr/local/tomcat/webapps/
+COPY target/*.war /usr/local/tomcat/webapps/
 
-EXPOSE 8080
+EXPOSE 8080	
